@@ -31,12 +31,14 @@ if __name__ == "__main__":
 
     path = "."
     uploaded_dir = "uploaded/"
+    duplicate_dir = "duplicate/"
     body_data = {"id": id_, "token": token}
     body_data_xd = {"id": id_xd, "token": token_xd}
     prefixes = ("xD_", "animu_", "deviant_", "insta_", "reddit_")
     prefixes_xd = ("animu_", "deviant_", "insta_", "reddit_")
     types = ["jpeg", "jpg", "png", "gif", "webm", "mp4", "webp"]
     files = []
+    duplicates = []
 
     log = Log(path=uploaded_dir)
 
@@ -46,7 +48,10 @@ if __name__ == "__main__":
             if entry.is_file() and not entry.is_dir():
                 if entry.name.startswith(prefixes):
                     if entry.name.lower()[entry.name.rfind(".") + 1:] in types:
-                        files.append(entry.name)
+                        if re.search("( \(\d\)\.)", entry.name):
+                            duplicates.append(entry.name)
+                        else:
+                            files.append(entry.name)
 
     if files:
         # create dir to move files into
@@ -60,25 +65,54 @@ if __name__ == "__main__":
 
         # upload files
         for name in files:
-            myfile = {"file": open(name, "rb")}
-
-            x = requests.post(url, data=body_data, files=myfile)
-            if name.startswith(prefixes_xd):
-                myfile = {"imageupload": open(name, "rb")}
-                y = requests.post(url_xd, data=body_data_xd, files=myfile)
-
-            myfile = {}
-            # clean up the name
-            response = x.json()
-            new_name = uploaded_dir + re.sub('[^\w-]', "_", name[:name.rfind(".")]) + name[name.rfind("."):]
-            # move file
+            # clean filename
+            new_name = re.sub('[^\w-]', "_", name[:name.rfind(".")]) + name[name.rfind("."):]
             try:
                 os.rename(name, new_name)
             except OSError:
-                os.remove(new_name)
-                log.append("Failed to move " + name)
-            log.append(f"{response['status']} Renamed {name} and moved to {new_name}.")
+                log.append(f"Failed to rename {name} to {new_name}.")
+                exit()
+            #log.append(f"Renamed {name} to {new_name}.")
 
-        log.append("Finished work.")
-    else:
-        log.append("No work to be done.")
+            upfile = {"file": open(new_name, "rb")}
+            x = requests.post(url, data=body_data, files=upfile)
+            if name.startswith(prefixes_xd):
+                upfile = {"imageupload": open(name, "rb")}
+                y = requests.post(url_xd, data=body_data_xd, files=upfile)
+            upfile = {}
+            response = x.json()
+            # move file
+            mv_file = uploaded_dir + new_name
+            try:
+                os.rename(new_name, mv_file)
+            except OSError:
+                os.remove(mv_file)
+                log.append("Failed to move " + new_name)
+                exit(1)
+            log.append(f"{response['status']} Moved to {mv_file}.")
+
+        # log.append("Finished uploading.")
+    # else:
+        # log.append("Nothing to be uploaded.")
+
+    if duplicates:
+        # remove duplicates
+        # create dir to move files into
+        try:
+            os.mkdir(duplicate_dir)
+            log.append("Path " + duplicate_dir + " created.")
+        except FileExistsError:
+            pass
+        finally:
+            log.append("Found possible duplicates. Proceeding to filter.")
+
+        for name in duplicates:
+            # clean filename
+            new_name = duplicate_dir + re.sub('[^\w-]', "_", name[:name.rfind(".")]) + name[name.rfind("."):]
+            try:
+                os.rename(name, new_name)
+            except OSError:
+                log.append(f"Failed to move {name} to {new_name}.")
+                exit(1)
+            log.append(f"Moved {name} to {new_name}.")
+

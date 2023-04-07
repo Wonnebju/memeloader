@@ -1,6 +1,7 @@
 import os
 import requests
 import datetime
+import re
 
 
 class Log:
@@ -16,20 +17,25 @@ class Log:
                 stamp = datetime.datetime.now()
                 line = stamp.strftime(self.time_format) + ": " + line
             log_file.write(line + "\n")
+            print(line)
 
 
 if __name__ == "__main__":
-    path = "."
-    uploaded_dir = "uploaded/"
+    # set these
     url = "https://some.website/api_upload.php"
     url_xd = "https://some.website/api/upload"
     token = "some_token"
     token_xd = "some_token"
-    id = "1"
+    id_ = "1"
     id_xd = "2"
-    body_data = {"id": id, "token": token}
+
+    path = "."
+    uploaded_dir = "uploaded/"
+    body_data = {"id": id_, "token": token}
     body_data_xd = {"id": id_xd, "token": token_xd}
-    types = ["jpeg", "jpg", "png", "gif", "webm", "mp4"]
+    prefixes = ("xD_", "animu_", "deviant_", "insta_", "reddit_")
+    prefixes_xd = ("animu_", "deviant_", "insta_", "reddit_")
+    types = ["jpeg", "jpg", "png", "gif", "webm", "mp4", "webp"]
     files = []
 
     log = Log(path=uploaded_dir)
@@ -38,9 +44,7 @@ if __name__ == "__main__":
     with os.scandir(path) as it:
         for entry in it:
             if entry.is_file() and not entry.is_dir():
-                if entry.name.startswith("xD_") or entry.name.startswith("animu_") or \
-                        entry.name.startswith("deviant_") or entry.name.startswith("insta_") or \
-                        entry.name.startswith("reddit_"):
+                if entry.name.startswith(prefixes):
                     if entry.name.lower()[entry.name.rfind(".") + 1:] in types:
                         files.append(entry.name)
 
@@ -57,22 +61,24 @@ if __name__ == "__main__":
         # upload files
         for name in files:
             myfile = {"file": open(name, "rb")}
+
             x = requests.post(url, data=body_data, files=myfile)
-            if name.startswith("insta_") or name.startswith("deviant_") or name.startswith("reddit_"):
+            if name.startswith(prefixes_xd):
                 myfile = {"imageupload": open(name, "rb")}
-                x = requests.post(url_xd, data=body_data_xd, files=myfile)
+                y = requests.post(url_xd, data=body_data_xd, files=myfile)
+
             myfile = {}
-            # move files to uploaded_dir
-            new_name = uploaded_dir + name
+            # clean up the name
+            response = x.json()
+            new_name = uploaded_dir + re.sub('[^\w-]', "_", name[:name.rfind(".")]) + name[name.rfind("."):]
+            # move file
             try:
                 os.rename(name, new_name)
             except OSError:
                 os.remove(new_name)
-                os.rename(name, new_name)
-            log.append("Uploaded and moved " + name)
+                log.append("Failed to move " + name)
+            log.append(f"{response['status']} Renamed {name} and moved to {new_name}.")
 
         log.append("Finished work.")
     else:
         log.append("No work to be done.")
-
-

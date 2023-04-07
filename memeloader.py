@@ -20,99 +20,128 @@ class Log:
             print(line)
 
 
-if __name__ == "__main__":
-    # set these
-    url = "https://some.website/api_upload.php"
-    url_xd = "https://some.website/api/upload"
-    token = "some_token"
-    token_xd = "some_token"
-    id_ = "1"
-    id_xd = "2"
+def scan_dir(path: str, prefixes: tuple, types: list) -> list:
+    """Scans directory for files with valid prefixes & types
 
-    path = "."
-    uploaded_dir = "uploaded/"
-    duplicate_dir = "duplicate/"
-    body_data = {"id": id_, "token": token}
-    body_data_xd = {"id": id_xd, "token": token_xd}
-    prefixes = ("xD_", "animu_", "deviant_", "insta_", "reddit_")
-    prefixes_xd = ("animu_", "deviant_", "insta_", "reddit_")
-    types = ["jpeg", "jpg", "png", "gif", "webm", "mp4", "webp"]
-    files = []
-    duplicates = []
-
-    log = Log(path=uploaded_dir)
-
-    # scan dir for new files
+    :param path: directory to search in
+    :param prefixes: tuple of prefixes
+    :param types: list of valid filetypes without the "."
+    :return: list of valid filenames
+    """
+    files = list()
     with os.scandir(path) as it:
         for entry in it:
-            if entry.is_file() and not entry.is_dir():
-                if entry.name.startswith(prefixes):
-                    if entry.name.lower()[entry.name.rfind(".") + 1:] in types:
-                        if re.search("( \(\d\)\.)", entry.name):
-                            duplicates.append(entry.name)
-                        else:
-                            files.append(entry.name)
+            if entry.is_file() \
+                    and entry.name.startswith(prefixes) \
+                    and entry.name.lower()[entry.name.rfind(".") + 1:] in types:
+                files.append(entry.name)
+    return files
 
-    if files:
-        # create dir to move files into
-        try:
-            os.mkdir(uploaded_dir)
-            log.append("Path " + uploaded_dir + " created.")
-        except FileExistsError:
-            pass
-        finally:
-            log.append("Found new files. Proceeding to upload.")
 
-        # upload files
-        for name in files:
-            # clean filename
-            new_name = re.sub('[^\w-]', "_", name[:name.rfind(".")]) + name[name.rfind("."):]
-            try:
-                os.rename(name, new_name)
-            except OSError:
-                log.append(f"Failed to rename {name} to {new_name}.")
-                exit()
-            # log.append(f"Renamed {name} to {new_name}.")
+def clean_name(name: str) -> str:
+    """Clean filename of non word chars and substitute them with "_"
+    """
+    name_cleaned = re.sub('[^\w-]', "_", name[:name.rfind(".")]) + name[name.rfind("."):]
+    return name_cleaned
 
-            upfile = {"file": open(new_name, "rb")}
-            x = requests.post(url, data=body_data, files=upfile)
-            if name.startswith(prefixes_xd):
-                upfile = {"imageupload": open(new_name, "rb")}
-                y = requests.post(url_xd, data=body_data_xd, files=upfile)
-            upfile = {}
-            response = x.json()
-            # move file
-            mv_file = uploaded_dir + new_name
-            try:
-                os.rename(new_name, mv_file)
-            except OSError:
-                os.remove(mv_file)
-                log.append("Failed to move " + new_name)
-                exit(1)
-            log.append(f"{response['status']} Moved to {mv_file}.")
 
-        # log.append("Finished uploading.")
-    # else:
-        # log.append("Nothing to be uploaded.")
+def mkdir(path: str):
+    """Creates a directory
+    """
+    try:
+        os.mkdir(path)
+        log.append(f"Directory {path} created.")
+    except FileExistsError:
+        pass
 
-    if duplicates:
-        # remove duplicates
-        # create dir to move files into
-        try:
-            os.mkdir(duplicate_dir)
-            log.append("Path " + duplicate_dir + " created.")
-        except FileExistsError:
-            pass
-        finally:
-            log.append("Found possible duplicates. Proceeding to filter.")
 
-        for name in duplicates:
-            # clean filename
-            new_name = duplicate_dir + re.sub('[^\w-]', "_", name[:name.rfind(".")]) + name[name.rfind("."):]
-            try:
-                os.rename(name, new_name)
-            except OSError:
-                log.append(f"Failed to move {name} to {new_name}.")
-                exit(1)
-            log.append(f"Moved {name} to {new_name}.")
+def move_file(name: str, target: str):
+    """Moves a file (replaces it)
+    """
+    try:
+        os.replace(name, target)
+    except OSError:
+        log.append(f"Failed to move {name} to {target}.")
+        exit(1)
+    # log.append(f"Renamed {name} to {new_name}.")
 
+
+def split_duplicates(files: list) -> tuple:
+    """Cleans file names of duplicates
+
+    :param files: list of file names
+    :return: tuple of lists of cleaned file names and duplicates
+    """
+    files_cleaned, duplicates = list(), list()
+    for file in files:
+        if re.search("( \(\d\)\.)", file):
+            duplicates.append(file)
+        else:
+            files_cleaned.append(file)
+    return files_cleaned, duplicates
+
+
+def upload_file(url: str, data: dict, files: dict) -> object:
+    """Upload the file via POST
+
+    :param url: target url
+    :param data: body data of the request
+    :param files: file descriptor and file byte stream
+    :return: Response object
+    """
+    response = requests.post(url, data=data, files=files)
+    # log.append(f"{response.json()['status']}")
+    return response
+
+
+def upload_move_files(files: list, url: str, data: dict, file_descriptor: str, target_dir: str):
+    """Upload multiple files with a cleaned name then move them
+
+    :param files: list of files
+    :param url: api target url
+    :param data: api target body data
+    :param file_descriptor: field name for files
+    :param target_dir: target move directory after upload
+    """
+    for file in files:
+        file_clean = clean_name(file)
+        move_file(file, file_clean)
+        with open(file, "rb") as outfile:
+            upload_file(url, data, {file_descriptor: outfile})
+        move_file(file_clean, target_dir + file_clean)
+
+
+def clean_move_files(files: list, target_dir: str):
+    """Clean names and move given files to target_dir
+
+    :param files: list of file names
+    :param target_dir:
+    """
+    for file in files:
+        file_clean = clean_name(file)
+        move_file(file, target_dir + file_clean)
+
+
+if __name__ == "__main__":
+    # request data
+    url = "https://some.website/api_upload.php"  # target api url
+    data = {"id": "1",  # body data the request will use
+            "token": "some_auth_token"}
+    file_descriptor = "file"  # name of the files field the target api will use
+    prefixes = ("xD_", "animu_", "deviant_", "insta_", "reddit_")  # file prefixes to scan for
+    types = ["jpeg", "jpg", "png", "gif", "webm", "mp4", "webp"]  # file types to scan for
+    uploaded_dir = "uploaded/"  # relative directory to move files to after upload
+    duplicate_dir = "duplicate/"  # relative directory to move duplicates to
+
+    # Do not change below
+    scan_path = "."  # only current work directory supported
+    mkdir(uploaded_dir)
+    mkdir(duplicate_dir)
+    # logging
+    log = Log(path=uploaded_dir)
+
+    # start the work
+    files = scan_dir(scan_path, prefixes, types)
+    files, duplicates = split_duplicates(files)
+    upload_move_files(files, url, data, file_descriptor, uploaded_dir)
+    clean_move_files(duplicates, duplicate_dir)

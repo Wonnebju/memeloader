@@ -72,12 +72,12 @@ if __name__ == "__main__":
             except OSError:
                 log.append(f"Failed to rename {name} to {new_name}.")
                 exit()
-            #log.append(f"Renamed {name} to {new_name}.")
+            # log.append(f"Renamed {name} to {new_name}.")
 
             upfile = {"file": open(new_name, "rb")}
             x = requests.post(url, data=body_data, files=upfile)
             if name.startswith(prefixes_xd):
-                upfile = {"imageupload": open(name, "rb")}
+                upfile = {"imageupload": open(new_name, "rb")}
                 y = requests.post(url_xd, data=body_data_xd, files=upfile)
             upfile = {}
             response = x.json()

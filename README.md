@@ -11,7 +11,6 @@ These directories and the log.txt will be created if not existing already.
 prefixes = ("", "")  # use this tuple to "disable" prefix condition
 types = ["jpeg"] # at least one type is required
 ```
-
 Required packages:
 ```
   -os
@@ -19,3 +18,5 @@ Required packages:
   -requests
   -datetime
 ```
+Added an userscript that complements the memeloader.
+It enables middleMouseClick to download on img and video tagged elements.

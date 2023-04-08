@@ -18,5 +18,5 @@ Required packages:
   -requests
   -datetime
 ```
-Added an userscript that complements the memeloader.
+Added Userscript (Greasemonkey/Tampermonkey) that complements the memeloader.
 It enables middleMouseClick to download on img and video tagged elements.

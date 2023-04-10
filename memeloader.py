@@ -106,7 +106,7 @@ def upload_move_files(files: list, url: str, data: dict, file_descriptor: str, t
     for file in files:
         file_clean = clean_name(file)
         move_file(file, file_clean)
-        with open(file, "rb") as outfile:
+        with open(file_clean, "rb") as outfile:
             upload_file(url, data, {file_descriptor: outfile})
         move_file(file_clean, target_dir + file_clean)
 

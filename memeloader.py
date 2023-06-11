@@ -135,10 +135,10 @@ if __name__ == "__main__":
 
     # Do not change below
     scan_path = "."  # only current work directory supported
-    mkdir(uploaded_dir)
-    mkdir(duplicate_dir)
     # logging
     log = Log(path=uploaded_dir)
+    mkdir(uploaded_dir)
+    mkdir(duplicate_dir)
 
     # start the work
     files = scan_dir(scan_path, prefixes, types)
